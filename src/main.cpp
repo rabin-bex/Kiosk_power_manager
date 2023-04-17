@@ -29,6 +29,7 @@ uint8_t test_val;
 //class for permant memory
 class P_Memory
 {
+  #define CONTROLLER_ID_ADDRESS 2
   #define WIFI_SSID_ADDRESS 5
   #define WIFI_PSK_ADDRESS 50
   #define FIREBASE_URL_ADDRESS 100
@@ -36,11 +37,9 @@ class P_Memory
   #define EEPROM_SIZE 512
   private:
   int memory_size;
+  unsigned int id;
   public:
-  P_Memory()
-  {
-    EEPROM.begin(EEPROM_SIZE);
-  }
+  P_Memory(){}
   void network_init(void);
   void set_wifi_ssid(const char * ssid, int  len);
   void get_wifi_ssid(unsigned char * ssid);
@@ -50,15 +49,20 @@ class P_Memory
   void get_firebase_url(unsigned char * url);
   void set_firebase_api_key(const char * key, int  len);
   void get_firebase_api_key(unsigned  char * key);
+  unsigned int get_device_id();
+  void set_device_id(unsigned int id);
   void clear_all_memory(void);
 }ESP32_Flash;
 
 static void setup_network(void);
 
+unsigned char buffer[150];
 void setup() 
 {
   Serial.begin(115200);
-  // Serial2.begin(115200,SERIAL_8N1,RXD2,TXD2);
+  EEPROM.begin(EEPROM_SIZE);
+  Serial2.begin(115200,SERIAL_8N1,RXD2,TXD2);
+
   // config.api_key=API_KEY;
   // config.database_url=DATABASE_URL;
   // if(Firebase.signUp(&config,&auth,"",""))
@@ -74,6 +78,9 @@ void setup()
   // Firebase.begin(&config,&auth);
   // Firebase.reconnectWiFi(true);
   pinMode(2,OUTPUT); 
+  delay(100);
+  //ESP32_Flash.set_wifi_psk("59S6xVrtFT",10);
+  //ESP32_Flash.get_wifi_ssid(buffer);
   setup_network();
 }
 
@@ -82,7 +89,7 @@ void setup()
 void loop()
 {
   digitalWrite(2,!digitalRead(2));
-  //Serial.printf("%s\n",ssid);
+  //Serial.printf("%s\n",buffer);
   delay(1000);
 }
 
@@ -95,6 +102,9 @@ static void setup_network(void)
   ESP32_Flash.get_wifi_ssid(wifi_ssid);
   ESP32_Flash.get_wifi_psk(wifi_psk);
   WiFi.begin((const char *)wifi_ssid,(const char *)wifi_psk);
+  
+  Serial.printf("ssid:%s\n",wifi_ssid);
+  Serial.printf("psk:%s\n",wifi_psk);
   Serial.print("connecting to wifi");
 
   unsigned long ref=millis();
