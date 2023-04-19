@@ -4,17 +4,8 @@
 #include "addons/RTDBHelper.h"
 #include  <EEPROM.h>
 
-
-
-//define the number of bytes you want to access
-
-#define RXD2 2
-#define TXD2 4
-
-#define WIFI_SSID "Paaila_Wifi"
-#define WIFI_PASSWORD "59S6xVrtFT"
-#define API_KEY "AIzaSyBZynTrydZRQvNCJPXcEV--2A4zaXAZO8A"
-#define DATABASE_URL "https://esp32-rtdb-83408-default-rtdb.asia-southeast1.firebasedatabase.app"
+#define RXD2 16//16,2
+#define TXD2 17//17,4
 
 unsigned long sendDataPrevMillis=0;
 bool signupOK=false;
@@ -36,11 +27,10 @@ class P_Memory
   #define FIREBASE_API_KEY_ADDRESS 250
   #define EEPROM_SIZE 512
   private:
-  int memory_size;
   unsigned int id;
   public:
   P_Memory(){}
-  void network_init(void);
+  void memory_init(){EEPROM.begin(EEPROM_SIZE);}
   void set_wifi_ssid(const char * ssid, int  len);
   void get_wifi_ssid(unsigned char * ssid);
   void set_wifi_psk(const char * psk, int  len);
@@ -60,8 +50,8 @@ unsigned char buffer[150];
 void setup() 
 {
   Serial.begin(115200);
-  EEPROM.begin(EEPROM_SIZE);
   Serial2.begin(115200,SERIAL_8N1,RXD2,TXD2);
+  ESP32_Flash.memory_init();
 
   // config.api_key=API_KEY;
   // config.database_url=DATABASE_URL;
@@ -79,8 +69,6 @@ void setup()
   // Firebase.reconnectWiFi(true);
   pinMode(2,OUTPUT); 
   delay(100);
-  //ESP32_Flash.set_wifi_psk("59S6xVrtFT",10);
-  //ESP32_Flash.get_wifi_ssid(buffer);
   setup_network();
 }
 
@@ -88,9 +76,11 @@ void setup()
 
 void loop()
 {
-  digitalWrite(2,!digitalRead(2));
-  //Serial.printf("%s\n",buffer);
-  delay(1000);
+  if(Serial2.available())Serial.write(Serial2.read());
+  if(Serial.available())Serial2.write(Serial.read());
+  
+  //digitalWrite(2,!digitalRead(2));
+  //delay(1000);
 }
 
 static void setup_network(void)
@@ -99,8 +89,12 @@ static void setup_network(void)
   unsigned char wifi_psk[50];
   unsigned char firebase_url[150];
   unsigned char firebase_key[150];
+
   ESP32_Flash.get_wifi_ssid(wifi_ssid);
   ESP32_Flash.get_wifi_psk(wifi_psk);
+  ESP32_Flash.get_firebase_url(firebase_url);
+  ESP32_Flash.get_firebase_api_key(firebase_key);
+
   WiFi.begin((const char *)wifi_ssid,(const char *)wifi_psk);
   
   Serial.printf("ssid:%s\n",wifi_ssid);
@@ -201,3 +195,14 @@ void P_Memory::set_firebase_api_key(const char * key, int  len)
   EEPROM.write(FIREBASE_API_KEY_ADDRESS+len,0);
   EEPROM.commit();
 }
+unsigned int get_device_id(void)
+{
+  unsigned int id;
+  unsigned char *ptr=(unsigned char *)&id;
+  //ptr[0]=EEPROM.read()
+}
+void set_device_id(unsigned int id)
+{
+
+}
+
