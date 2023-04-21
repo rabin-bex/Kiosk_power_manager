@@ -3,9 +3,23 @@
 #include "addons/TokenHelper.h"
 #include "addons/RTDBHelper.h"
 #include  <EEPROM.h>
+#include <ArduinoJson.h>
 
 #define RXD2 16//16,2
 #define TXD2 17//17,4
+
+struct
+{
+ StaticJsonDocument<256> doc;
+}Json;
+
+struct
+{
+  char buffer[256];
+  char index;
+  unsigned long ref;
+}uart;
+
 
 unsigned long sendDataPrevMillis=0;
 bool signupOK=false;
@@ -45,6 +59,9 @@ class P_Memory
 }ESP32_Flash;
 
 static void setup_network(void);
+void check_serial_request(void);
+void check_firebase_request(void);
+bool check_serial();
 
 unsigned char buffer[150];
 void setup() 
@@ -82,6 +99,60 @@ void loop()
   //digitalWrite(2,!digitalRead(2));
   //delay(1000);
 }
+
+void check_serial_request(void)
+{
+  if( check_serial())
+  {
+    DeserializationError error = deserializeJson(Json.doc, uart.buffer);
+    if (error) 
+    {
+      Serial.println("{\"topic\":\"status\",\"value\":\"error\"}");
+    }
+    else
+    {
+      String topic=Json.doc["topic"];
+      String value=Json.doc["value"];
+      if(topic=="url")
+      {
+        if(value=="?")
+        {
+        }
+        else
+        {
+          if(value!=NULL)
+          {
+            //if(parse_time_date(value))
+            //Serial.println("{\"topic\":\"status\",\"value\":\"ok\"}");
+            //else Serial.println("{\"topic\":\"status\",\"value\":\"error\"}");
+          }
+        }
+      }
+      
+    }
+  }
+}
+
+bool check_serial()
+{
+  if(Serial.available())
+  {
+    memset(uart.buffer,'\0',256);
+    uart.ref=millis();
+    uart.index=0;
+    while((unsigned long)(millis()-uart.ref)<15)
+    {
+       if(Serial.available())
+       {
+         uart.ref=millis();
+         uart.buffer[uart.index++]=Serial.read();      
+       }
+    }
+    return true;
+  }
+  return false;
+}
+
 
 static void setup_network(void)
 {
@@ -199,10 +270,15 @@ unsigned int get_device_id(void)
 {
   unsigned int id;
   unsigned char *ptr=(unsigned char *)&id;
-  //ptr[0]=EEPROM.read()
+  ptr[0]=EEPROM.read(CONTROLLER_ID_ADDRESS);
+  ptr[1]=EEPROM.read(CONTROLLER_ID_ADDRESS+1);
+  return id;
 }
 void set_device_id(unsigned int id)
 {
-
+  unsigned char *ptr=(unsigned char *)&id;
+  EEPROM.write(CONTROLLER_ID_ADDRESS,ptr[0]);
+  EEPROM.write(CONTROLLER_ID_ADDRESS+1,ptr[1]);
+  EEPROM.commit();
 }
 
