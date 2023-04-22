@@ -18,7 +18,7 @@ struct
   char buffer[256];
   char index;
   unsigned long ref;
-}uart;
+}uart,uart2;
 
 
 bool signupOK=false;
@@ -26,14 +26,13 @@ bool signupOK=false;
 FirebaseData fbdo,fbdo_stream;
 FirebaseAuth auth;
 FirebaseConfig config;
-unsigned char device_id;
-
+int device_id;
 
 
 //class for permant memory
 class P_Memory
 {
-  #define CONTROLLER_ID_ADDRESS 2
+  #define CONTROLLER_ID_ADDRESS 0
   #define WIFI_SSID_ADDRESS 5
   #define WIFI_PSK_ADDRESS 50
   #define FIREBASE_URL_ADDRESS 100
@@ -52,8 +51,8 @@ class P_Memory
   void get_firebase_url(char * url);
   void set_firebase_api_key(const char * key, int  len);
   void get_firebase_api_key(char * key);
-  unsigned int get_device_id();
-  void set_device_id(unsigned int id);
+  int get_device_id();
+  void set_device_id(int id);
   void clear_all_memory(void);
 }ESP32_Flash;
 
@@ -61,6 +60,7 @@ static void setup_network(void);
 static void check_serial_request(void);
 static void check_firebase_request(void);
 static bool check_serial();
+static bool check_serial2();
 
 void setup() 
 {
@@ -75,7 +75,10 @@ void loop()
   check_firebase_request();
   check_serial_request();
 }
-
+//result.stringValue
+                //String topic=(Firebase.RTDB.getString(&fbdo,"Server_Request/topic")?fbdo.stringData():"";  
+                //String value=Firebase.RTDB.getString(&fbdo,"Server_Request/value")?fbdo.stringData():"";  
+                //Firebase.RTDB.setString(&fbdo,"Device_Response","ok");
 static void check_firebase_request(void)
 {
   if( Firebase.ready() && signupOK)
@@ -84,20 +87,27 @@ static void check_firebase_request(void)
     
     if( fbdo_stream.streamAvailable())
     {
-      if(fbdo_stream.boolData())
+      if(fbdo_stream.intData()==device_id)
       {
-        if(Firebase.RTDB.getInt(&fbdo,"Device_ID"))
+        Firebase.RTDB.setInt(&fbdo,"Device_ID",0);
+        FirebaseJson json;
+        FirebaseJsonData result;
+        String topic;
+        String value;
+        char serial[200];
+        if(Firebase.RTDB.getJSON(&fbdo,"Server_Request"))json=fbdo.jsonObject();
+        if(json.get(result,"topic"))topic=result.stringValue;
+        if(json.get(result,"value"))value=result.stringValue;
+        else
         {
-          if(fbdo.dataType()=="int")
+          json.toString(serial);
+          Serial2.println(serial);
+          
+          if(check_serial2())
           {
-            if( device_id==fbdo.intData())
-            { 
-              Serial.println("stream flag is true");
-              Firebase.RTDB.setBool(&fbdo,"Update_Flag",false);
-              Firebase.RTDB.setString(&fbdo,"Device_Response","ok");
-            }
+            if(json.setJsonData(uart2.buffer))Firebase.RTDB.setJSON(&fbdo,"Device_Response",&json);
           }
-        }
+        }   
       }
     }
   }
@@ -208,8 +218,7 @@ static void check_serial_request(void)
         if(value=="?")
         {
           Serial.print("{\"topic\":\"device_id\",\"value\":\"");
-          //Serial.printf("%d",(unsigned int)ESP32_Flash.get_device_id());
-          Serial.printf("%d",2);
+          Serial.printf("%d",ESP32_Flash.get_device_id());
           Serial.println("\"}");
         }
         else
@@ -281,7 +290,7 @@ static void setup_network(void)
   config.token_status_callback=tokenStatusCallback;
   Firebase.begin(&config,&auth);
   Firebase.reconnectWiFi(true);
-  if( signupOK) if(!Firebase.RTDB.beginStream(&fbdo_stream,"Update_Flag"))
+  if( signupOK) if(!Firebase.RTDB.beginStream(&fbdo_stream,"Device_ID"))
     Serial.printf("Update flag stream error, %s\n\n",fbdo_stream.errorReason().c_str());
 }
 
@@ -307,7 +316,25 @@ static bool check_serial()
   return false;
 }
 
-
+static bool check_serial2()
+{
+  if(Serial2.available())
+  {
+    memset(uart2.buffer,'\0',256);
+    uart2.ref=millis();
+    uart2.index=0;
+    while((unsigned long)(millis()-uart2.ref)<15)
+    {
+       if(Serial2.available())
+       {
+         uart2.ref=millis();
+         uart2.buffer[uart2.index++]=Serial2.read();      
+       }
+    }
+    return true;
+  }
+  return false;
+}
 
 void P_Memory::clear_all_memory(void)
 {
@@ -391,19 +418,23 @@ void P_Memory::set_firebase_api_key(const char * key, int  len)
   EEPROM.write(FIREBASE_API_KEY_ADDRESS+len,0);
   EEPROM.commit();
 }
-unsigned int P_Memory::get_device_id(void)
+int P_Memory::get_device_id(void)
 {
   unsigned int id;
   unsigned char *ptr=(unsigned char *)&id;
   ptr[0]=EEPROM.read(CONTROLLER_ID_ADDRESS);
   ptr[1]=EEPROM.read(CONTROLLER_ID_ADDRESS+1);
+  ptr[2]=EEPROM.read(CONTROLLER_ID_ADDRESS+2);
+  ptr[3]=EEPROM.read(CONTROLLER_ID_ADDRESS+3);
   return id;
 }
-void P_Memory::set_device_id(unsigned int id)
+void P_Memory::set_device_id(int id)
 {
   unsigned char *ptr=(unsigned char *)&id;
   EEPROM.write(CONTROLLER_ID_ADDRESS,ptr[0]);
   EEPROM.write(CONTROLLER_ID_ADDRESS+1,ptr[1]);
+  EEPROM.write(CONTROLLER_ID_ADDRESS+2,ptr[2]);
+  EEPROM.write(CONTROLLER_ID_ADDRESS+3,ptr[3]);
   EEPROM.commit();
 }
 
