@@ -21,16 +21,15 @@ struct
 }uart;
 
 
-unsigned long sendDataPrevMillis=0;
 bool signupOK=false;
-int ldrData=0;
-float voltage=0.0;
 
-FirebaseData fbdo;
+FirebaseData fbdo,fbdo_stream;
 FirebaseAuth auth;
 FirebaseConfig config;
+unsigned char device_id;
 
-uint8_t test_val;
+
+
 //class for permant memory
 class P_Memory
 {
@@ -46,65 +45,71 @@ class P_Memory
   P_Memory(){}
   void memory_init(){EEPROM.begin(EEPROM_SIZE);}
   void set_wifi_ssid(const char * ssid, int  len);
-  void get_wifi_ssid(unsigned char * ssid);
+  void get_wifi_ssid(char * ssid);
   void set_wifi_psk(const char * psk, int  len);
-  void get_wifi_psk(unsigned char * psk);
+  void get_wifi_psk(char * psk);
   void set_firebase_url(const char * url, int  len);
-  void get_firebase_url(unsigned char * url);
+  void get_firebase_url(char * url);
   void set_firebase_api_key(const char * key, int  len);
-  void get_firebase_api_key(unsigned  char * key);
+  void get_firebase_api_key(char * key);
   unsigned int get_device_id();
   void set_device_id(unsigned int id);
   void clear_all_memory(void);
 }ESP32_Flash;
 
 static void setup_network(void);
-void check_serial_request(void);
-void check_firebase_request(void);
-bool check_serial();
+static void check_serial_request(void);
+static void check_firebase_request(void);
+static bool check_serial();
 
-unsigned char buffer[150];
 void setup() 
 {
   Serial.begin(115200);
   Serial2.begin(115200,SERIAL_8N1,RXD2,TXD2);
   ESP32_Flash.memory_init();
-
-  // config.api_key=API_KEY;
-  // config.database_url=DATABASE_URL;
-  // if(Firebase.signUp(&config,&auth,"",""))
-  // {
-  //   Serial.println("signup OK");
-  //   signupOK=true;
-  // }
-  // else
-  // {
-  //   Serial.printf("%s\n",config.signer.signupError.message.c_str());
-  // }
-  // config.token_status_callback=tokenStatusCallback;
-  // Firebase.begin(&config,&auth);
-  // Firebase.reconnectWiFi(true);
-  pinMode(2,OUTPUT); 
-  delay(100);
   setup_network();
 }
 
-
-
 void loop()
 {
-  if(Serial2.available())Serial.write(Serial2.read());
-  if(Serial.available())Serial2.write(Serial.read());
-  
-  //digitalWrite(2,!digitalRead(2));
-  //delay(1000);
+  check_firebase_request();
+  check_serial_request();
 }
 
-void check_serial_request(void)
+static void check_firebase_request(void)
+{
+  if( Firebase.ready() && signupOK)
+  {
+    if(!Firebase.RTDB.readStream(&fbdo_stream)) Serial.printf("Stream read error, %s\n\n",fbdo_stream.errorReason().c_str());
+    
+    if( fbdo_stream.streamAvailable())
+    {
+      if(fbdo_stream.boolData())
+      {
+        if(Firebase.RTDB.getInt(&fbdo,"Device_ID"))
+        {
+          if(fbdo.dataType()=="int")
+          {
+            if( device_id==fbdo.intData())
+            { 
+              Serial.println("stream flag is true");
+              Firebase.RTDB.setBool(&fbdo,"Update_Flag",false);
+              Firebase.RTDB.setString(&fbdo,"Device_Response","ok");
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+static void check_serial_request(void)
 {
   if( check_serial())
   {
-    DeserializationError error = deserializeJson(Json.doc, uart.buffer);
+    char buffer[200];
+    strcpy(buffer,uart.buffer);
+    DeserializationError error = deserializeJson(Json.doc, buffer);
     if (error) 
     {
       Serial.println("{\"topic\":\"status\",\"value\":\"error\"}");
@@ -117,23 +122,172 @@ void check_serial_request(void)
       {
         if(value=="?")
         {
+          ESP32_Flash.get_firebase_url(buffer);
+          Serial.print("{\"topic\":\"url\",\"value\":\"");
+          Serial.printf("%s",buffer);
+          Serial.println("\"}");
         }
         else
         {
           if(value!=NULL)
           {
-            //if(parse_time_date(value))
-            //Serial.println("{\"topic\":\"status\",\"value\":\"ok\"}");
-            //else Serial.println("{\"topic\":\"status\",\"value\":\"error\"}");
+            int len=value.length()+1;
+            value.toCharArray(buffer,len);
+            ESP32_Flash.set_firebase_url(buffer,len);
+            Serial.println("{\"topic\":\"status\",\"value\":\"ok\"}");
           }
         }
+      }
+
+
+      else if(topic=="api_key")
+      {
+        if(value=="?")
+        {
+          ESP32_Flash.get_firebase_api_key(buffer);
+          Serial.print("{\"topic\":\"api_key\",\"value\":\"");
+          Serial.printf("%s",buffer);
+          Serial.println("\"}");
+        }
+        else
+        {
+          if(value!=NULL)
+          {
+            int len=value.length()+1;
+            value.toCharArray(buffer,len);
+            ESP32_Flash.set_firebase_api_key(buffer,len);
+            Serial.println("{\"topic\":\"status\",\"value\":\"ok\"}");
+          }
+        }
+      }
+
+      else if(topic=="wifi_ssid")
+      {
+        if(value=="?")
+        {
+          ESP32_Flash.get_wifi_ssid(buffer);
+          Serial.print("{\"topic\":\"wifi_ssid\",\"value\":\"");
+          Serial.printf("%s",buffer);
+          Serial.println("\"}");
+        }
+        else
+        {
+          if(value!=NULL)
+          {
+            int len=value.length()+1;
+            value.toCharArray(buffer,len);
+            ESP32_Flash.set_wifi_ssid(buffer,len);
+            Serial.println("{\"topic\":\"wifi_ssid\",\"value\":\"ok\"}");
+          }
+        }
+      }
+
+      else if(topic=="wifi_psk")
+      {
+        if(value=="?")
+        {
+          ESP32_Flash.get_wifi_psk(buffer);
+          Serial.print("{\"topic\":\"wifi_psk\",\"value\":\"");
+          Serial.printf("%s",buffer);
+          Serial.println("\"}");
+        }
+        else
+        {
+          if(value!=NULL)
+          {
+            int len=value.length()+1;
+            value.toCharArray(buffer,len);
+            ESP32_Flash.set_wifi_psk(buffer,len);
+            Serial.println("{\"topic\":\"wifi_psk\",\"value\":\"ok\"}");
+          }
+        }
+      }
+
+      else if(topic=="device_id")
+      {
+        if(value=="?")
+        {
+          Serial.print("{\"topic\":\"device_id\",\"value\":\"");
+          //Serial.printf("%d",(unsigned int)ESP32_Flash.get_device_id());
+          Serial.printf("%d",2);
+          Serial.println("\"}");
+        }
+        else
+        {
+          if(value!=NULL)
+          {
+            int len=value.length()+1;
+            value.toCharArray(buffer,len);
+            ESP32_Flash.set_device_id(atoi(buffer));
+            Serial.println("{\"topic\":\"device_id\",\"value\":\"ok\"}");
+          }
+        }
+      }
+
+
+      else
+      {
+        Serial2.printf("%s",uart.buffer);
       }
       
     }
   }
+  if(Serial2.available())Serial.write(Serial2.read());
 }
 
-bool check_serial()
+static void setup_network(void)
+{
+  char wifi_ssid[50];
+  char wifi_psk[50];
+  char firebase_url[150];
+  char firebase_key[150];
+  
+  ESP32_Flash.get_wifi_ssid(wifi_ssid);
+  ESP32_Flash.get_wifi_psk(wifi_psk);
+  ESP32_Flash.get_firebase_url(firebase_url);
+  ESP32_Flash.get_firebase_api_key(firebase_key);
+  device_id=ESP32_Flash.get_device_id();
+  
+
+  WiFi.begin((const char *)wifi_ssid,(const char *)wifi_psk);
+  
+  Serial.printf("ssid:%s\n",wifi_ssid);
+  Serial.printf("psk:%s\n",wifi_psk);
+  Serial.print("connecting to wifi");
+
+  unsigned long ref=millis();
+  while(WiFi.status()!=WL_CONNECTED && (millis()-ref)<20000)
+  {
+    Serial.print(".");
+    delay(300);
+  }
+  Serial.println();
+  Serial.print("Connected with IP:");
+  Serial.println(WiFi.localIP());
+  Serial.println();
+  config.api_key="";
+  config.database_url="";
+
+  config.api_key+=firebase_key;
+  config.database_url+=firebase_url;
+  
+  if(Firebase.signUp(&config,&auth,"",""))
+  {
+    Serial.println("signup OK");
+    signupOK=true;
+  }
+  else Serial.printf("%s\n",config.signer.signupError.message.c_str());
+  
+  config.token_status_callback=tokenStatusCallback;
+  Firebase.begin(&config,&auth);
+  Firebase.reconnectWiFi(true);
+  if( signupOK) if(!Firebase.RTDB.beginStream(&fbdo_stream,"Update_Flag"))
+    Serial.printf("Update flag stream error, %s\n\n",fbdo_stream.errorReason().c_str());
+}
+
+
+
+static bool check_serial()
 {
   if(Serial.available())
   {
@@ -154,35 +308,6 @@ bool check_serial()
 }
 
 
-static void setup_network(void)
-{
-  unsigned char wifi_ssid[50];
-  unsigned char wifi_psk[50];
-  unsigned char firebase_url[150];
-  unsigned char firebase_key[150];
-
-  ESP32_Flash.get_wifi_ssid(wifi_ssid);
-  ESP32_Flash.get_wifi_psk(wifi_psk);
-  ESP32_Flash.get_firebase_url(firebase_url);
-  ESP32_Flash.get_firebase_api_key(firebase_key);
-
-  WiFi.begin((const char *)wifi_ssid,(const char *)wifi_psk);
-  
-  Serial.printf("ssid:%s\n",wifi_ssid);
-  Serial.printf("psk:%s\n",wifi_psk);
-  Serial.print("connecting to wifi");
-
-  unsigned long ref=millis();
-  while(WiFi.status()!=WL_CONNECTED && (millis()-ref)<20000)
-  {
-    Serial.print(".");
-    delay(300);
-  }
-  Serial.println();
-  Serial.print("Connected with IP:");
-  Serial.println(WiFi.localIP());
-  Serial.println();
-}
 
 void P_Memory::clear_all_memory(void)
 {
@@ -200,7 +325,7 @@ void P_Memory::set_wifi_ssid(const char * ssid, int  len)
   EEPROM.commit();
 }
 
-void P_Memory::get_wifi_ssid(unsigned char * ssid)
+void P_Memory::get_wifi_ssid(char * ssid)
 {
   for(int i=0; i<45; i++)
   {
@@ -219,7 +344,7 @@ void P_Memory::set_wifi_psk(const char * psk, int  len)
   EEPROM.write(WIFI_PSK_ADDRESS+len,0);
   EEPROM.commit();
 }
-void P_Memory::get_wifi_psk(unsigned char * psk)
+void P_Memory::get_wifi_psk(char * psk)
 {
   for(int i=0; i<50; i++)
   {
@@ -230,7 +355,7 @@ void P_Memory::get_wifi_psk(unsigned char * psk)
   }
 }
 
-void P_Memory::get_firebase_url(unsigned  char * url)
+void P_Memory::get_firebase_url(char * url)
 {
   for(int i=0; i<150; i++)
   {
@@ -248,7 +373,7 @@ void P_Memory::set_firebase_url(const char * url,int  len)
   EEPROM.write(FIREBASE_URL_ADDRESS+len,0);
   EEPROM.commit();
 }
-void P_Memory::get_firebase_api_key(unsigned char * key)
+void P_Memory::get_firebase_api_key(char * key)
 {
   for(int i=0; i<150; i++)
   {
@@ -266,7 +391,7 @@ void P_Memory::set_firebase_api_key(const char * key, int  len)
   EEPROM.write(FIREBASE_API_KEY_ADDRESS+len,0);
   EEPROM.commit();
 }
-unsigned int get_device_id(void)
+unsigned int P_Memory::get_device_id(void)
 {
   unsigned int id;
   unsigned char *ptr=(unsigned char *)&id;
@@ -274,7 +399,7 @@ unsigned int get_device_id(void)
   ptr[1]=EEPROM.read(CONTROLLER_ID_ADDRESS+1);
   return id;
 }
-void set_device_id(unsigned int id)
+void P_Memory::set_device_id(unsigned int id)
 {
   unsigned char *ptr=(unsigned char *)&id;
   EEPROM.write(CONTROLLER_ID_ADDRESS,ptr[0]);
