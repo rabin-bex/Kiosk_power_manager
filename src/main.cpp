@@ -28,6 +28,8 @@ FirebaseAuth auth;
 FirebaseConfig config;
 int device_id;
 
+const byte Number_Of_Days_In_Months[]={31,29,31,30,31,30,31,31,30,31,30,31};
+
 
 //class for permant memory
 class P_Memory
@@ -37,7 +39,8 @@ class P_Memory
   #define WIFI_PSK_ADDRESS 50
   #define FIREBASE_URL_ADDRESS 100
   #define FIREBASE_API_KEY_ADDRESS 250
-  #define EEPROM_SIZE 512
+  #define EEPROM_SIZE 2048
+  #define SCHEDULE_START_ADDRESS 1024
   private:
   unsigned int id;
   public:
@@ -54,13 +57,21 @@ class P_Memory
   int get_device_id();
   void set_device_id(int id);
   void clear_all_memory(void);
+  void storeSchedule(uint8_t month, uint8_t day,uint8_t Start_hour, uint8_t Start_minute, uint8_t End_hour, uint8_t End_minute);
+  void getSchedule(uint8_t month, uint8_t day);
 }ESP32_Flash;
 
 static void setup_network(void);
 static void check_serial_request(void);
 static void check_firebase_request(void);
+static void check_slave_request(void);
 static bool check_serial();
 static bool check_serial2();
+
+//result.stringValue
+                //String topic=(Firebase.RTDB.getString(&fbdo,"Server_Request/topic")?fbdo.stringData():"";  
+                //String value=Firebase.RTDB.getString(&fbdo,"Server_Request/value")?fbdo.stringData():"";  
+                //Firebase.RTDB.setString(&fbdo,"Device_Response","ok");
 
 void setup() 
 {
@@ -68,17 +79,28 @@ void setup()
   Serial2.begin(115200,SERIAL_8N1,RXD2,TXD2);
   ESP32_Flash.memory_init();
   setup_network();
+  // delay(2000);
+  // char buf[50];
+  // for(int i=1; i<30;i++)
+  // {
+  // sprintf(buf,"Schedule/Mar/%d",i);
+  // Firebase.RTDB.setString(&fbdo,buf,"24:0,24:0,24:0,24:0");
+  // delay(500);
+  // }
 }
 
 void loop()
 {
   check_firebase_request();
   check_serial_request();
+  check_slave_request();
 }
-//result.stringValue
-                //String topic=(Firebase.RTDB.getString(&fbdo,"Server_Request/topic")?fbdo.stringData():"";  
-                //String value=Firebase.RTDB.getString(&fbdo,"Server_Request/value")?fbdo.stringData():"";  
-                //Firebase.RTDB.setString(&fbdo,"Device_Response","ok");
+
+static void check_slave_request(void)
+{
+
+}
+                
 static void check_firebase_request(void)
 {
   if( Firebase.ready() && signupOK)
@@ -94,15 +116,118 @@ static void check_firebase_request(void)
         FirebaseJsonData result;
         String topic;
         String value;
+        char buffer[200];
         char serial[200];
         if(Firebase.RTDB.getJSON(&fbdo,"Server_Request"))json=fbdo.jsonObject();
         if(json.get(result,"topic"))topic=result.stringValue;
         if(json.get(result,"value"))value=result.stringValue;
+        if(topic=="url")
+        {
+          if(value=="?")
+          {
+            ESP32_Flash.get_firebase_url(buffer);
+            sprintf(serial,"{\"topic\":\"url\",\"value\":\"%s\"}",buffer);
+            if(json.setJsonData(serial))Firebase.RTDB.setJSON(&fbdo,"Device_Response",&json);
+          }
+          else
+          {
+            if(value!=NULL)
+            {
+              int len=value.length()+1;
+              value.toCharArray(buffer,len);
+              ESP32_Flash.set_firebase_url(buffer,len);
+              sprintf(serial,"{\"topic\":\"status\",\"value\":\"ok\"}");
+              if(json.setJsonData(serial))Firebase.RTDB.setJSON(&fbdo,"Device_Response",&json);
+            }
+          }
+        }
+        else if(topic=="api_key")
+        {
+         if(value=="?")
+         {
+           ESP32_Flash.get_firebase_api_key(buffer);
+           sprintf(serial,"{\"topic\":\"api_key\",\"value\":\"%s\"}",buffer);
+           if(json.setJsonData(serial))Firebase.RTDB.setJSON(&fbdo,"Device_Response",&json);
+         }
+         else
+         {
+           if(value!=NULL)
+           {
+             int len=value.length()+1;
+             value.toCharArray(buffer,len);
+             ESP32_Flash.set_firebase_api_key(buffer,len);
+             sprintf(serial,"{\"topic\":\"status\",\"value\":\"ok\"}");
+             if(json.setJsonData(serial))Firebase.RTDB.setJSON(&fbdo,"Device_Response",&json);
+           }
+         }
+        }
+
+        else if(topic=="wifi_ssid")
+        {
+         if(value=="?")
+         {
+           ESP32_Flash.get_wifi_ssid(buffer);
+           sprintf(serial,"{\"topic\":\"wifi_ssid\",\"value\":\"%s\"}",buffer);
+           if(json.setJsonData(serial))Firebase.RTDB.setJSON(&fbdo,"Device_Response",&json);
+         }
+         else
+         {
+           if(value!=NULL)
+           {
+             int len=value.length()+1;
+             value.toCharArray(buffer,len);
+             ESP32_Flash.set_wifi_ssid(buffer,len);
+             sprintf(serial,"{\"topic\":\"status\",\"value\":\"ok\"}");
+             if(json.setJsonData(serial))Firebase.RTDB.setJSON(&fbdo,"Device_Response",&json);
+           }
+         }
+       }
+
+       else if(topic=="wifi_psk")
+       {
+         if(value=="?")
+         {
+           ESP32_Flash.get_wifi_psk(buffer);
+           sprintf(serial,"{\"topic\":\"wifi_psk\",\"value\":\"%s\"}",buffer);
+           if(json.setJsonData(serial))Firebase.RTDB.setJSON(&fbdo,"Device_Response",&json);
+         }
+         else
+         {
+           if(value!=NULL)
+           {
+             int len=value.length()+1;
+             value.toCharArray(buffer,len);
+             ESP32_Flash.set_wifi_psk(buffer,len);
+             sprintf(serial,"{\"topic\":\"status\",\"value\":\"ok\"}");
+             if(json.setJsonData(serial))Firebase.RTDB.setJSON(&fbdo,"Device_Response",&json);
+           }
+         }
+       }
+
+       else if(topic=="device_id")
+       {
+         if(value=="?")
+         {
+           sprintf(serial,"{\"topic\":\"device_id\",\"value\":\"%d\"}",ESP32_Flash.get_device_id());
+           if(json.setJsonData(serial))Firebase.RTDB.setJSON(&fbdo,"Device_Response",&json);
+         } 
         else
         {
+          if(value!=NULL)
+          {
+            int len=value.length()+1;
+            value.toCharArray(buffer,len);
+            ESP32_Flash.set_device_id(atoi(buffer));
+            sprintf(serial,"{\"topic\":\"status\",\"value\":\"ok\"}");
+            if(json.setJsonData(serial))Firebase.RTDB.setJSON(&fbdo,"Device_Response",&json);
+          }
+        }
+       }
+       else
+       {
           json.toString(serial);
           Serial2.println(serial);
-          
+          delay(100);
           if(check_serial2())
           {
             if(json.setJsonData(uart2.buffer))Firebase.RTDB.setJSON(&fbdo,"Device_Response",&json);
@@ -187,7 +312,7 @@ static void check_serial_request(void)
             int len=value.length()+1;
             value.toCharArray(buffer,len);
             ESP32_Flash.set_wifi_ssid(buffer,len);
-            Serial.println("{\"topic\":\"wifi_ssid\",\"value\":\"ok\"}");
+            Serial.println("{\"topic\":\"status\",\"value\":\"ok\"}");
           }
         }
       }
@@ -208,7 +333,7 @@ static void check_serial_request(void)
             int len=value.length()+1;
             value.toCharArray(buffer,len);
             ESP32_Flash.set_wifi_psk(buffer,len);
-            Serial.println("{\"topic\":\"wifi_psk\",\"value\":\"ok\"}");
+            Serial.println("{\"topic\":\"status\",\"value\":\"ok\"}");
           }
         }
       }
@@ -228,7 +353,7 @@ static void check_serial_request(void)
             int len=value.length()+1;
             value.toCharArray(buffer,len);
             ESP32_Flash.set_device_id(atoi(buffer));
-            Serial.println("{\"topic\":\"device_id\",\"value\":\"ok\"}");
+            Serial.println("{\"topic\":\"status\",\"value\":\"ok\"}");
           }
         }
       }
@@ -237,11 +362,13 @@ static void check_serial_request(void)
       else
       {
         Serial2.printf("%s",uart.buffer);
+        delay(100);
+        if(check_serial2())Serial.println(uart2.buffer);
       }
       
     }
   }
-  if(Serial2.available())Serial.write(Serial2.read());
+  //if(Serial2.available())Serial.write(Serial2.read());
 }
 
 static void setup_network(void)
@@ -334,6 +461,17 @@ static bool check_serial2()
     return true;
   }
   return false;
+}
+
+void P_Memory::storeSchedule(uint8_t month, uint8_t day,uint8_t Start_hour, uint8_t Start_minute, uint8_t End_hour, uint8_t End_minute)
+{
+  if(month>12 || month==0)return;
+  if(day>Number_Of_Days_In_Months[month-1] || day==0)return;    
+  int EEPROM_Address=SCHEDULE_START_ADDRESS+month*70+(day-1)*2;
+  uint8_t lsb=(Start_hour<<2) | (Start_minute/15);
+  uint8_t msb=(End_hour<<2) | (End_minute/15);
+  EEPROM.write(EEPROM_Address, lsb);
+  EEPROM.write(EEPROM_Address+1, msb);  
 }
 
 void P_Memory::clear_all_memory(void)
