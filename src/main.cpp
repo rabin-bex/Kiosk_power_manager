@@ -79,13 +79,13 @@ void setup()
   Serial2.begin(115200,SERIAL_8N1,RXD2,TXD2);
   ESP32_Flash.memory_init();
   setup_network();
-  // delay(2000);
+  delay(2000);
   // char buf[50];
-  // for(int i=1; i<30;i++)
+  // for(int i=1; i<32;i++)
   // {
-  // sprintf(buf,"Schedule/Mar/%d",i);
+  // sprintf(buf,"Schedule/Dec/%d",i);
   // Firebase.RTDB.setString(&fbdo,buf,"24:0,24:0,24:0,24:0");
-  // delay(500);
+  // delay(300);
   // }
 }
 
@@ -93,7 +93,7 @@ void loop()
 {
   check_firebase_request();
   check_serial_request();
-  check_slave_request();
+  //check_slave_request();
 }
 
 static void check_slave_request(void)
@@ -141,13 +141,34 @@ static void check_firebase_request(void)
             }
           }
         }
+        else if(topic=="schedule")
+        {
+          if (value == "?") goto label;
+          else if(value=="Jan")
+          {
+            // char buf[50];
+            // String val;
+            // for(int i=1; i<32;i++)
+            // {
+            //   sprintf(buf,"Schedule/Jan/%d",i);
+            //   if(Firebase.RTDB.getString(&fbdo,buf))
+            //   {
+            //     val=fbdo.stringData();
+            //     Serial.println(val);
+            //   }
+            //   delay(30);
+            // }
+
+          }
+        }
         else if(topic=="api_key")
         {
-         if(value=="?")
-         {
-           ESP32_Flash.get_firebase_api_key(buffer);
-           sprintf(serial,"{\"topic\":\"api_key\",\"value\":\"%s\"}",buffer);
-           if(json.setJsonData(serial))Firebase.RTDB.setJSON(&fbdo,"Device_Response",&json);
+          if (value == "?")
+          {
+            ESP32_Flash.get_firebase_api_key(buffer);
+            sprintf(serial, "{\"topic\":\"api_key\",\"value\":\"%s\"}", buffer);
+            if (json.setJsonData(serial))
+              Firebase.RTDB.setJSON(&fbdo, "Device_Response", &json);
          }
          else
          {
@@ -225,6 +246,7 @@ static void check_firebase_request(void)
        }
        else
        {
+          label:
           json.toString(serial);
           Serial2.println(serial);
           delay(100);
@@ -362,7 +384,7 @@ static void check_serial_request(void)
       else
       {
         Serial2.printf("%s",uart.buffer);
-        delay(100);
+        delay(200);
         if(check_serial2())Serial.println(uart2.buffer);
       }
       
