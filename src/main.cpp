@@ -107,10 +107,31 @@ void loop()
 
 static void check_slave_request(void)
 {
-   if(check_serial2)
+   if(check_serial2())
    {
-    ;
-   }
+     DeserializationError error = deserializeJson(Json.doc, uart2.buffer);
+     if (error) 
+     {
+       Serial.println("{\"topic\":\"status\",\"value\":\"error\"}");
+     }
+     else
+     {
+       String topic=Json.doc["topic"];
+       String value=Json.doc["value"];
+       uint8_t month,day;
+       if(topic=="schedule2")
+       {
+         if(check_query(value,&month,&day))
+         {
+           schedule sh=ESP32_Flash.getSchedule(month,day);
+           delay(7000);
+           Serial2.printf("{\"topic\":\"schedule2\",\"value\":\"%d:%d,%d:%d,24:0,24:0\"}",sh.Start_hour,sh.Start_minute,sh.End_hour,sh.End_minute);
+           delay(300);
+           if(check_serial2())Serial.println(uart2.buffer);
+         }
+       }
+      }
+    }
 }
 
                 
@@ -456,7 +477,7 @@ static bool check_query(String value,uint8_t* month, uint8_t* day)
     sub_val=value.substring(start,end);
     if(sub_val!="?")
     return false;
-  }
+  }else return false;
   start=end+1;
   end=value.indexOf('/',start);
   if(end<len)
@@ -464,7 +485,7 @@ static bool check_query(String value,uint8_t* month, uint8_t* day)
     *month=value.substring(start,end).toInt();
     if(*month<1 && *month>12)
     return false;
-  }
+  }else return false;
   start=end+1;
   *day=value.substring(start,len).toInt();
   if(*day>Number_Of_Days_In_Months[*month-1] && *day<1 )return false;
@@ -485,7 +506,7 @@ static bool check_day(String value,uint8_t *month, uint8_t *day)
     sub_val=value.substring(start,end);
     if(sub_val!="Day")
     return false;
-  }
+  }else return false;
   start=end+1;
   end=value.indexOf('/',start);
   if(end<len)
@@ -493,7 +514,7 @@ static bool check_day(String value,uint8_t *month, uint8_t *day)
     *month=value.substring(start,end).toInt();
     if(*month<1 && *month>12)
     return false;
-  }
+  }else return false;
   start=end+1;
   *day=value.substring(start,len).toInt();
   if(*day>Number_Of_Days_In_Months[*month-1] && *day<1 )return false;
