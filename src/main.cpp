@@ -89,13 +89,13 @@ void setup()
   ESP32_Flash.memory_init();
   setup_network();
   delay(2000);
-  // char buf[50];
-  // for(int i=1; i<32;i++)
-  // {
-  // sprintf(buf,"Schedule/Jan/%d",i);
-  // Firebase.RTDB.setString(&fbdo,buf,"0:0,0:0,24:0,24:0");
-  // delay(300);
-  // }
+  char buf[50];
+  for(int i=1; i<31;i++)
+  {
+  sprintf(buf,"Schedule/Apr/%d",i);
+  Firebase.RTDB.setString(&fbdo,buf,"0:0,0:0,24:0,24:0");
+  delay(300);
+  }
 }
 
 void loop()
@@ -243,7 +243,7 @@ static void check_firebase_request(void)
                     Serial.printf("%s\n",uart2.buffer);
                   }
                 }
-                delay(200);
+                delay(500);
               }
            }
            
@@ -301,9 +301,13 @@ static void check_firebase_request(void)
             {
                sprintf(buf,"{\"topic\":\"schedule\",\"value\":\"%d/%d,%d:%d,%d:%d\"}",m,d,sc.Start_hour,sc.Start_minute,sc.End_hour,sc.End_minute);
                Serial2.printf("%s",buf);
+               Serial.printf("%s\n",buf);
                delay(100);
                if(check_serial2())
-               if(json.setJsonData(uart2.buffer))Firebase.RTDB.setJSON(&fbdo,"Device_Response",&json);
+               {
+                Serial.println(uart2.buffer);
+                if(json.setJsonData(uart2.buffer))Firebase.RTDB.setJSON(&fbdo,"Device_Response",&json);
+               }
             }
           }
            
@@ -323,12 +327,13 @@ static void check_firebase_request(void)
                   success_count++;
                   sprintf(buf,"{\"topic\":\"schedule\",\"value\":\"%d/%d,%d:%d,%d:%d\"}",index+1,i,sc.Start_hour,sc.Start_minute,sc.End_hour,sc.End_minute);
                   Serial2.printf("%s",buf);
-                  delay(100);
+                  Serial.printf("%s\n",buf);
+                  delay(200);
                   if(check_serial2())
                   Serial.printf("%s\n",uart2.buffer);
                 }
               }
-              delay(200);
+              delay(800);
             }
             if(success_count==Number_Of_Days_In_Months[index])
             {
@@ -340,9 +345,10 @@ static void check_firebase_request(void)
          else if(check_query(value,&m,&d)) 
           {
             Serial2.printf("{\"topic\":\"schedule\",\"value\":\"%d/%d,?\"}",m,d);
-            delay(200);
+            delay(300);
             if(check_serial2())
             {
+              //Serial.printf("%s\n",uart2.buffer);
               DeserializationError error = deserializeJson(Json.doc, uart2.buffer);
               if (error) 
               {
@@ -355,8 +361,9 @@ static void check_firebase_request(void)
 
                  if(topic=="schedule")
                  {
+                  value.toCharArray(buf,50);
                   schedule sc=ESP32_Flash.getSchedule(m,d);
-                  sprintf(serial,"{\"topic\":\"schedule\",\"value\":\"%s,%d:%d,%d:%d\"}",value,sc.Start_hour,sc.Start_minute,sc.End_hour,sc.End_minute);
+                  sprintf(serial,"{\"topic\":\"schedule\",\"value\":\"%s,%d:%d,%d:%d\"}",buf,sc.Start_hour,sc.Start_minute,sc.End_hour,sc.End_minute);
                   if(json.setJsonData(serial))Firebase.RTDB.setJSON(&fbdo,"Device_Response",&json);
                  }
               }
