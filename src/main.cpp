@@ -217,9 +217,9 @@ static void check_firebase_request(void)
           if (value == "Year")
           {
             char month[30];
-            strcpy(month,device_id);
             for (int i = 0; i < 12; i++)
             {
+              strcpy(month,device_id);
               switch (i)
               {
               case 0:
@@ -352,7 +352,7 @@ static void check_firebase_request(void)
             int success_count = 0;
             for (int i = 1; i < Number_Of_Days_In_Months[index] + 1; i++)
             {
-              sprintf(buf, "Schedule/%s/%d", value, i);
+              sprintf(buf, "%s/Schedule/%s/%d",device_id,value, i);
               if (Firebase.RTDB.getString(&fbdo, buf))
               {
                 val = fbdo.stringData();
@@ -383,7 +383,6 @@ static void check_firebase_request(void)
             delay(300);
             if (check_serial2())
             {
-              // Serial.printf("%s\n",uart2.buffer);
               DeserializationError error = deserializeJson(Json.doc, uart2.buffer);
               if (error)
               {
@@ -1091,7 +1090,7 @@ void P_Memory::set_device_id(char *id)
 unsigned int P_Memory::get_connection_time()
 {
   unsigned int time;
-  unsigned char* ptr;
+  unsigned char* ptr=(unsigned char *)&time;
   ptr[0] = EEPROM.read(CONNECTION_TIME_ADDRESS);
   ptr[1] = EEPROM.read(CONNECTION_TIME_ADDRESS + 1);
   ptr[2] = EEPROM.read(CONNECTION_TIME_ADDRESS + 2);
